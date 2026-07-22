@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>우리 집 가계부</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;700&family=Noto+Sans+KR:wght@400;500;700;800&family=Roboto+Mono:wght@500;700&display=swap');
+
+  :root {
+    --bg: #F7F4EC;
+    --surface: #FFFFFF;
+    --ink: #1B2A4A;
+    --ink-soft: #5B6478;
+    --line: #E4DFD2;
+    --accent: #2F8F7A;
+    --accent-soft: #EAF5F2;
+    --danger: #C85A36;
+  }
+  * , *::before, *::after { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--ink);
+    font-family: 'Noto Sans KR', system-ui, sans-serif;
+  }
+  button, input, textarea { font-family: inherit; }
+
+  #app {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: var(--bg);
+    background-image: repeating-linear-gradient(to bottom, transparent, transparent 39px, rgba(27,42,74,0.045) 40px);
+    color: var(--ink);
+    font-size: 17px;
+    position: relative;
+  }
+  @media (min-width: 481px) {
+    #app { border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+  }
+
+  /* ---------- 공용 ---------- */
+  .screen { display: flex; flex-direction: column; padding: 18px 18px 100px; }
+  .section-title { font-size: 15px; font-weight: 700; color: var(--ink-soft); margin: 26px 0 10px; }
+  .section-title .section-hint { font-weight: 500; font-size: 12px; color: #8B92A3; }
+  .screen > .section-title:first-child { margin-top: 4px; }
+  .empty-state { text-align: center; color: var(--ink-soft); font-size: 14.5px; padding: 26px 0; background: var(--surface); border: 1px dashed var(--line); border-radius: 14px; }
+  .error-banner { background: #FBEEE9; color: var(--danger); border: 1px solid #E0714F; border-radius: 12px; padding: 12px 14px; font-size: 13.5px; margin-bottom: 14px; line-height: 1.5; }
+
+  /* ---------- 스플래시 ---------- */
+  .splash { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--ink-soft); }
+
+  /* ---------- 설정(Firebase 연결) 화면 ---------- */
+  .setup-screen { min-height: 100vh; display: flex; flex-direction: column; padding: 36px 22px; background: var(--ink); color: #F7F4EC; }
+  .setup-title { font-family: 'Noto Serif KR', serif; font-size: 23px; font-weight: 700; margin: 0 0 6px; }
+  .setup-sub { font-size: 14px; color: rgba(247,244,236,0.65); line-height: 1.6; margin: 0 0 22px; }
+  .setup-sub b { color: #F7F4EC; }
+  .setup-sub ol { padding-left: 18px; margin: 8px 0 0; }
+  .setup-sub li { margin-bottom: 4px; }
+  .setup-textarea {
+    width: 100%; min-height: 150px; border-radius: 14px; border: 1px solid rgba(247,244,236,0.25);
+    background: rgba(255,255,255,0.06); color: #F7F4EC; padding: 14px; font-size: 13px;
+    font-family: 'Roboto Mono', monospace; resize: vertical; outline: none;
+  }
+  .setup-textarea::placeholder { color: rgba(247,244,236,0.35); }
+  .setup-textarea:focus { border-color: var(--accent); }
+  .setup-btn {
+    margin-top: 16px; background: var(--accent); color: #fff; border: none; border-radius: 14px;
+    padding: 16px 0; font-size: 16.5px; font-weight: 800;
+  }
+  .setup-error { margin-top: 12px; background: rgba(224,113,79,0.15); border: 1px solid #E0714F; color: #FBEEE9; border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+
+  /* ---------- 잠금 화면 ---------- */
+  .lock-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 24px; background: var(--ink); color: #F7F4EC; }
+  .lock-badge { width: 64px; height: 64px; border-radius: 20px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; font-size: 26px; }
+  .lock-title { font-family: 'Noto Serif KR', serif; font-size: 26px; font-weight: 700; margin: 0 0 6px; }
+  .lock-sub { font-size: 15px; color: rgba(247,244,236,0.6); margin: 0 0 32px; }
+  .lock-dots { display: flex; gap: 16px; margin-bottom: 40px; }
+  .lock-dots.shake { animation: shakeAnim 0.4s; }
+  @keyframes shakeAnim { 0%,100%{transform:translateX(0);} 20%,60%{transform:translateX(-8px);} 40%,80%{transform:translateX(8px);} }
+  .dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(247,244,236,0.4); }
+  .dot.filled { background: var(--accent); border-color: var(--accent); }
+  .keypad { display: grid; grid-template-columns: repeat(3, 72px); gap: 16px; }
+  .key { width: 72px; height: 72px; border-radius: 50%; border: 1px solid rgba(247,244,236,0.18); background: rgba(255,255,255,0.06); color: #F7F4EC; font-size: 26px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+  .key:active { background: rgba(255,255,255,0.18); }
+
+  /* ---------- 헤더 ---------- */
+  .app-header { position: sticky; top: 0; z-index: 10; background: var(--bg); border-bottom: 1px solid var(--line); padding: 16px 18px 12px; }
+  .brand-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-family: 'Noto Serif KR', serif; font-weight: 700; font-size: 19px; }
+  .gear-btn { background: transparent; border: none; font-size: 18px; color: var(--ink-soft); padding: 6px; border-radius: 8px; }
+  .gear-btn:active { background: var(--accent-soft); }
+  .month-switch { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 8px 10px; }
+  .month-switch button { background: transparent; border: none; color: var(--ink); width: 34px; height: 34px; border-radius: 10px; font-size: 18px; }
+  .month-switch button:active { background: var(--accent-soft); }
+  .month-switch span { font-weight: 700; font-size: 17px; font-family: 'Roboto Mono', monospace; }
+  .reset-confirm { display: flex; gap: 8px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; font-size: 13px; }
+  .reset-confirm .mini-btn.danger { margin-left: auto; }
+
+  /* ---------- 대시보드 ---------- */
+  .total-card { background: var(--ink); border-radius: 20px; padding: 26px 22px; display: flex; flex-direction: column; gap: 8px; color: #F7F4EC; }
+  .total-label { font-size: 14px; color: rgba(247,244,236,0.65); font-weight: 600; }
+  .total-amount { font-family: 'Roboto Mono', monospace; font-size: 34px; font-weight: 700; }
+  .payer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .payer-card { border-radius: 16px; padding: 14px 14px 16px; display: flex; flex-direction: column; gap: 10px; border: none; text-align: left; transition: transform 0.08s; }
+  .payer-card:active { transform: scale(0.97); }
+  .payer-card-selected { transform: scale(0.98); }
+  .filter-reset-btn { margin-top: 10px; align-self: flex-start; background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft); font-size: 12.5px; font-weight: 700; padding: 8px 12px; border-radius: 999px; }
+  .payer-chip { display: inline-flex; align-self: flex-start; color: #fff; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+  .payer-amt { font-family: 'Roboto Mono', monospace; font-size: 19px; font-weight: 700; }
+  .cat-list { display: flex; flex-direction: column; gap: 14px; }
+  .cat-row-top { display: flex; justify-content: space-between; font-size: 15.5px; font-weight: 600; margin-bottom: 6px; }
+  .cat-row-top span:last-child { font-family: 'Roboto Mono', monospace; color: var(--ink-soft); }
+  .cat-bar-bg { height: 8px; background: var(--line); border-radius: 999px; overflow: hidden; }
+  .cat-bar-fill { height: 100%; background: var(--accent); border-radius: 999px; }
+  .tx-list { display: flex; flex-direction: column; gap: 8px; }
+  .tx-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 12px; }
+  .tx-chip { font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 8px; white-space: nowrap; }
+  .tx-mid { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 2px; }
+  .tx-cat { font-weight: 700; font-size: 15px; }
+  .tx-memo { font-size: 12.5px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tx-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  .tx-date { font-size: 11.5px; color: var(--ink-soft); font-family: 'Roboto Mono', monospace; }
+  .tx-amt { font-weight: 700; font-family: 'Roboto Mono', monospace; font-size: 15.5px; }
+  .tx-del { background: transparent; border: none; color: var(--ink-soft); padding: 4px; border-radius: 8px; font-size: 16px; }
+  .tx-del:active { background: #FBEEE9; color: var(--danger); }
+  .tx-confirm { display: flex; gap: 6px; }
+  .mini-btn { display: flex; align-items: center; gap: 4px; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 5px 8px; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+  .mini-btn.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+  /* ---------- 입력 화면 ---------- */
+  .payer-select-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .payer-select-btn { border: 2px solid; border-radius: 16px; padding: 18px 0; font-size: 18px; font-weight: 800; background: var(--surface); }
+  .chip-wrap { display: flex; flex-wrap: wrap; gap: 10px 8px; }
+  .chip-item { position: relative; display: inline-flex; }
+  .chip-del-btn { position: absolute; top: -7px; right: -7px; width: 19px; height: 19px; border-radius: 50%; background: var(--danger); color: #fff; font-size: 12px; line-height: 1; border: 2px solid var(--bg); padding: 0; display: flex; align-items: center; justify-content: center; }
+  .chip-del-confirm { position: absolute; top: -14px; right: -6px; display: flex; gap: 3px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 3px 4px; box-shadow: 0 2px 6px rgba(27,42,74,0.12); }
+  .chip-del-confirm button { border: none; background: transparent; font-size: 12px; padding: 2px 4px; border-radius: 6px; color: var(--ink-soft); }
+  .chip-del-confirm button:first-child { color: var(--danger); font-weight: 700; }
+  .chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 9px 16px; font-size: 14.5px; font-weight: 600; }
+  .chip-selected { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; }
+  .chip-add { display: flex; align-items: center; gap: 3px; color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .chip-add-form { display: flex; align-items: center; gap: 6px; border: 1px solid var(--accent); border-radius: 999px; padding: 4px 6px 4px 14px; background: var(--surface); }
+  .chip-add-form input { border: none; outline: none; font-size: 14px; width: 100px; background: transparent; }
+  .chip-add-form button { border: none; background: var(--accent-soft); color: var(--accent); width: 26px; height: 26px; border-radius: 50%; }
+  .chip-add-form button:last-child { background: #FBEEE9; color: var(--danger); }
+  .form-block { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .field-label { font-size: 13px; font-weight: 700; color: var(--ink-soft); margin-top: 10px; }
+  .field-label:first-child { margin-top: 0; }
+  .amount-input-wrap { display: flex; align-items: baseline; gap: 6px; border-bottom: 2px solid var(--line); padding-bottom: 6px; }
+  .amount-input-wrap:focus-within { border-color: var(--accent); }
+  .amount-input { border: none; outline: none; background: transparent; font-family: 'Roboto Mono', monospace; font-size: 30px; font-weight: 700; color: var(--ink); width: 100%; }
+  .won-suffix { font-size: 16px; color: var(--ink-soft); font-weight: 600; }
+  .date-input, .memo-input { border: none; border-bottom: 2px solid var(--line); outline: none; background: transparent; font-size: 16px; padding: 8px 2px; color: var(--ink); width: 100%; }
+  .date-input:focus, .memo-input:focus { border-color: var(--accent); }
+  .save-btn { margin-top: 18px; background: var(--accent); color: #fff; border: none; border-radius: 16px; padding: 17px 0; font-size: 17.5px; font-weight: 800; width: 100%; }
+  .save-btn.disabled { opacity: 0.4; pointer-events: none; }
+  .save-btn:active { opacity: 0.85; }
+
+  /* ---------- 통계 화면 ---------- */
+  .chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 12px; }
+  .chart-unit-note { font-size: 11px; color: var(--ink-soft); margin-bottom: 4px; }
+  .legend-wrap { display: flex; flex-direction: column; gap: 8px; padding: 10px 4px 2px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .legend-name { flex: 1; font-weight: 600; }
+  .legend-pct { color: var(--ink-soft); font-family: 'Roboto Mono', monospace; font-size: 13px; }
+
+  /* ---------- 하단 내비게이션 ---------- */
+  .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; display: flex; background: var(--surface); border-top: 1px solid var(--line); padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); gap: 6px; }
+  .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; background: transparent; border: none; color: var(--ink-soft); padding: 8px 0 6px; border-radius: 12px; font-size: 12px; font-weight: 700; }
+  .nav-btn span.ic { font-size: 19px; }
+  .nav-btn.active { color: var(--accent); background: var(--accent-soft); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot,
+  query, orderBy, setDoc, arrayUnion, arrayRemove, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ================= 설정값 ================= */
+const PASSWORD = "0777";
+const PAYERS = ["공통K", "공통N", "KIS", "NSH"];
+const PAYER_STYLE = {
+  "공통K": { solid: "#4C5FD5", bg: "#EEF0FC", text: "#3B4BC0" },
+  "공통N": { solid: "#2F8F7A", bg: "#EAF5F2", text: "#227160" },
+  "KIS":   { solid: "#E0714F", bg: "#FBEEE9", text: "#C85A36" },
+  "NSH":   { solid: "#D9A441", bg: "#FBF3E3", text: "#B5811F" },
+};
+const DEFAULT_CATEGORIES = ["식비","교통비","의료비","주거비","통신비","문화생활","쇼핑","교육비","기타"];
+const PIE_COLORS = ["#2F8F7A","#4C5FD5","#E0714F","#D9A441","#7C6FE0","#4FA3C4","#B5811F","#8E8E93"];
+
+/* 가족 공용 Firebase 프로젝트 설정 (미리 입력되어 있어 매번 붙여넣을 필요 없음) */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDCpNorW7XQB3phyhxnUXQu2WTEmhLVuys",
+  authDomain: "calc-2d5f2.firebaseapp.com",
+  databaseURL: "https://calc-2d5f2-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "calc-2d5f2",
+  storageBucket: "calc-2d5f2.firebasestorage.app",
+  messagingSenderId: "1056863115612",
+  appId: "1:1056863115612:web:b318fdb229f6d30128c999"
+};
+
+/* ================= 유틸 ================= */
+const todayStr = () => new Date().toISOString().slice(0,10);
+const thisMonth = () => new Date().toISOString().slice(0,7);
+const fmtWon = (n) => `${Number(n||0).toLocaleString('ko-KR')}원`;
+const fmtAmountInput = (raw) => raw ? Number(raw).toLocaleString('ko-KR') : "";
+const fmtK = (n) => Math.round(Number(n||0)).toLocaleString('ko-KR');
+const monthLabel = (ym) => { const [y,m] = ym.split('-'); return `${y}년 ${Number(m)}월`; };
+const shiftMonth = (ym, diff) => {
+  const [y,m] = ym.split('-').map(Number);
+  const d = new Date(y, m-1+diff, 1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+};
+const esc = (s) => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const niceMax = (max) => {
+  if (max <= 0) return 10000;
+  const step = Math.pow(10, Math.floor(Math.log10(max)));
+  const n = Math.ceil(max / step);
+  const rounded = (n <= 1) ? 1 : (n <= 2) ? 2 : (n <= 5) ? 5 : 10;
+  return rounded * step;
+};
+
+/* ================= 상태 ================= */
+const state = {
+  booted: false,
+  firebaseReady: false,
+  connError: "",
+  unlocked: false,
+  pwInput: "",
+  shake: false,
+  tab: "dashboard",
+  dashPayer: null,
+  month: thisMonth(),
+  expenses: [],
+  categories: [],
+  form: { payer: null, category: null, amount: "", date: todayStr(), memo: "" },
+  addingCat: false,
+  newCatText: "",
+  deletingId: null,
+  deletingCat: null,
+};
+
+let db = null;
+
+/* ================= Firebase 연결 ================= */
+function connectFirebase(config) {
+  try {
+    const app = initializeApp(config);
+    db = getFirestore(app);
+    state.firebaseReady = true;
+    state.connError = "";
+
+    onSnapshot(query(collection(db, "expenses"), orderBy("date", "desc")),
+      (snap) => {
+        state.expenses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        render();
+      },
+      (err) => { state.connError = "실시간 동기화 오류: " + err.message + " (Firestore 보안 규칙을 확인해주세요)"; render(); }
+    );
+
+    onSnapshot(doc(db, "meta", "categories"),
+      (snap) => {
+        if (!snap.exists()) {
+          setDoc(doc(db, "meta", "categories"), { items: DEFAULT_CATEGORIES });
+          state.categories = DEFAULT_CATEGORIES;
+        } else {
+          state.categories = snap.data().items || [];
+        }
+        render();
+      },
+      (err) => { state.connError = "카테고리 동기화 오류: " + err.message; render(); }
+    );
+
+    render();
+  } catch (e) {
+    state.connError = "Firebase 연결 실패: " + e.message;
+    render();
+  }
+}
+
+/* ================= Firestore CRUD ================= */
+async function addExpenseToDB(item) {
+  try { await addDoc(collection(db, "expenses"), { ...item, createdAt: serverTimestamp() }); }
+  catch (e) { alert("저장 실패: " + e.message); }
+}
+async function deleteExpenseFromDB(id) {
+  try { await deleteDoc(doc(db, "expenses", id)); }
+  catch (e) { alert("삭제 실패: " + e.message); }
+}
+async function addCategoryToDB(name) {
+  try { await setDoc(doc(db, "meta", "categories"), { items: arrayUnion(name) }, { merge: true }); }
+  catch (e) { alert("카테고리 추가 실패: " + e.message); }
+}
+async function deleteCategoryFromDB(name) {
+  try { await setDoc(doc(db, "meta", "categories"), { items: arrayRemove(name) }, { merge: true }); }
+  catch (e) { alert("카테고리 삭제 실패: " + e.message); }
+}
+
+/* ================= 렌더링 ================= */
+function render() {
+  const active = document.activeElement;
+  let focusId = null, selStart = null, selEnd = null;
+  if (active && active.id && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) {
+    focusId = active.id;
+    try { selStart = active.selectionStart; selEnd = active.selectionEnd; } catch {}
+  }
+
+  const app = document.getElementById("app");
+  app.innerHTML = buildHTML();
+
+  if (focusId) {
+    const el = document.getElementById(focusId);
+    if (el) { el.focus(); try { el.setSelectionRange(selStart, selEnd); } catch {} }
+  }
+}
+
+function buildHTML() {
+  if (!state.firebaseReady) return renderConnectingScreen();
+  if (!state.unlocked) return renderLockScreen();
+  return renderMainShell();
+}
+
+function renderConnectingScreen() {
+  return `
+  <div class="splash">
+    💰
+    <div>가계부 서버에 연결하는 중…</div>
+    ${state.connError ? `<div class="setup-error" style="max-width:320px;">${esc(state.connError)}</div>` : ""}
+  </div>`;
+}
+
+function renderLockScreen() {
+  return `
+  <div class="lock-screen">
+    <div class="lock-badge">🔒</div>
+    <div class="lock-title">우리 집 가계부</div>
+    <div class="lock-sub">비밀번호 4자리를 입력하세요</div>
+    <div class="lock-dots ${state.shake ? "shake" : ""}">
+      ${[0,1,2,3].map(i => `<span class="dot ${state.pwInput.length > i ? "filled" : ""}"></span>`).join("")}
+    </div>
+    <div class="keypad">
+      ${["1","2","3","4","5","6","7","8","9"].map(n => `<button class="key" data-action="keypress" data-digit="${n}">${n}</button>`).join("")}
+      <span></span>
+      <button class="key" data-action="keypress" data-digit="0">0</button>
+      <button class="key" data-action="key-del">⌫</button>
+    </div>
+  </div>`;
+}
+
+function renderMainShell() {
+  const monthExpenses = state.expenses.filter(e => (e.date || "").slice(0,7) === state.month);
+  let body = "";
+  if (state.tab === "dashboard") body = renderDashboard(monthExpenses);
+  else if (state.tab === "input") body = renderInput(monthExpenses);
+  else body = renderStats();
+
+  return `
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand-row">
+        <div class="brand">💰 우리 집 가계부</div>
+      </div>
+      ${state.connError ? `<div class="error-banner">${esc(state.connError)}</div>` : ""}
+      <div class="month-switch">
+        <button data-action="prev-month">‹</button>
+        <span>${monthLabel(state.month)}</span>
+        <button data-action="next-month">›</button>
+      </div>
+    </header>
+    <main>${body}</main>
+    <nav class="bottom-nav">
+      <button class="nav-btn ${state.tab==='dashboard'?'active':''}" data-action="set-tab" data-tab="dashboard"><span class="ic">📊</span><span>대시보드</span></button>
+      <button class="nav-btn ${state.tab==='input'?'active':''}" data-action="set-tab" data-tab="input"><span class="ic">✏️</span><span>입력</span></button>
+      <button class="nav-btn ${state.tab==='stats'?'active':''}" data-action="set-tab" data-tab="stats"><span class="ic">📈</span><span>통계</span></button>
+    </nav>
+  </div>`;
+}
+
+/* ---------- 대시보드 ---------- */
+function renderDashboard(monthExpenses) {
+  const total = monthExpenses.reduce((s,e) => s + Number(e.amount), 0);
+  const byPayer = Object.fromEntries(PAYERS.map(p => [p, 0]));
+  monthExpenses.forEach(e => { byPayer[e.payer] = (byPayer[e.payer]||0) + Number(e.amount); });
+
+  const filtered = state.dashPayer ? monthExpenses.filter(e => e.payer === state.dashPayer) : monthExpenses;
+
+  const byCatMap = {};
+  filtered.forEach(e => { byCatMap[e.category] = (byCatMap[e.category]||0) + Number(e.amount); });
+  const byCategory = Object.entries(byCatMap).sort((a,b) => b[1]-a[1]);
+  const maxCat = byCategory[0]?.[1] || 1;
+
+  const recent = [...filtered].sort((a,b) => (a.date < b.date ? 1 : -1)).slice(0,6);
+  const filterLabel = state.dashPayer ? ` · ${state.dashPayer}` : "";
+
+  return `
+  <div class="screen">
+    <section class="total-card">
+      <span class="total-label">${monthLabel(state.month)} 총 지출</span>
+      <span class="total-amount">${fmtWon(total)}</span>
+    </section>
+
+    <div class="section-title">입력자별 지출 <span class="section-hint">(눌러서 필터링)</span></div>
+    <div class="payer-grid">
+      ${PAYERS.map(p => `
+        <button class="payer-card ${state.dashPayer===p ? "payer-card-selected" : ""}" data-action="select-dash-payer" data-payer="${p}"
+          style="background:${PAYER_STYLE[p].bg}; ${state.dashPayer===p ? `box-shadow: 0 0 0 2px ${PAYER_STYLE[p].solid} inset;` : ""}">
+          <span class="payer-chip" style="background:${PAYER_STYLE[p].solid}">${p}</span>
+          <span class="payer-amt" style="color:${PAYER_STYLE[p].text}">${fmtWon(byPayer[p])}</span>
+        </button>`).join("")}
+    </div>
+    ${state.dashPayer ? `<button class="filter-reset-btn" data-action="select-dash-payer" data-payer="${state.dashPayer}">✕ ${esc(state.dashPayer)} 필터 해제 (전체 보기)</button>` : ""}
+
+    <div class="section-title">카테고리별 지출${filterLabel}</div>
+    ${byCategory.length === 0 ? `<div class="empty-state">${state.dashPayer ? esc(state.dashPayer)+"의 " : ""}이번 달 지출 내역이 없어요</div>` : `
+      <div class="cat-list">
+        ${byCategory.map(([cat,amt]) => `
+          <div class="cat-row">
+            <div class="cat-row-top"><span>${esc(cat)}</span><span>${fmtWon(amt)}</span></div>
+            <div class="cat-bar-bg"><div class="cat-bar-fill" style="width:${(amt/maxCat)*100}%"></div></div>
+          </div>`).join("")}
+      </div>`}
+
+    <div class="section-title">최근 지출${filterLabel}</div>
+    ${recent.length === 0 ? `<div class="empty-state">${state.dashPayer ? esc(state.dashPayer)+"의 " : ""}최근 지출 내역이 없어요</div>` : `
+      <div class="tx-list">${recent.map(e => renderTxRow(e, false)).join("")}</div>`}
+  </div>`;
+}
+
+function renderTxRow(e, withDelete) {
+  const st = PAYER_STYLE[e.payer] || PAYER_STYLE["공통K"];
+  const deleting = state.deletingId === e.id;
+  return `
+  <div class="tx-row">
+    <span class="tx-chip" style="background:${st.bg};color:${st.text}">${esc(e.payer)}</span>
+    <div class="tx-mid">
+      <span class="tx-cat">${esc(e.category)}</span>
+      ${e.memo ? `<span class="tx-memo">${esc(e.memo)}</span>` : ""}
+    </div>
+    <div class="tx-right">
+      <span class="tx-date">${esc((e.date||"").slice(5).replace("-","."))}</span>
+      <span class="tx-amt">${fmtWon(e.amount)}</span>
+    </div>
+    ${withDelete ? (deleting ? `
+      <div class="tx-confirm">
+        <button class="mini-btn danger" data-action="confirm-delete" data-id="${e.id}">✓ 삭제</button>
+        <button class="mini-btn" data-action="cancel-delete">✕</button>
+      </div>` : `
+      <button class="tx-del" data-action="ask-delete" data-id="${e.id}">🗑</button>`) : ""}
+  </div>`;
+}
+
+/* ---------- 입력 화면 ---------- */
+function renderInput(monthExpenses) {
+  const f = state.form;
+  const categories = f.payer ? Array.from(new Set(state.categories)) : [];
+  const canSave = f.payer && f.category && Number(f.amount) > 0;
+  const list = [...monthExpenses].sort((a,b) => (a.date < b.date ? 1 : -1));
+
+  return `
+  <div class="screen">
+    <div class="section-title">1. 입력자 선택</div>
+    <div class="payer-select-grid">
+      ${PAYERS.map(p => `
+        <button class="payer-select-btn" data-action="select-payer" data-payer="${p}"
+          style="border-color:${PAYER_STYLE[p].solid}; ${f.payer===p ? `background:${PAYER_STYLE[p].solid};color:#fff;` : `background:${PAYER_STYLE[p].bg};color:${PAYER_STYLE[p].text};`}">
+          ${p}
+        </button>`).join("")}
+    </div>
+
+    ${f.payer ? `
+      <div class="section-title">2. 카테고리 선택 (모든 입력자 공용, 삭제 가능)</div>
+      <div class="chip-wrap">
+        ${categories.map(c => `
+          <span class="chip-item">
+            <button class="chip ${f.category===c ? "chip-selected" : ""}" data-action="select-category" data-cat="${esc(c)}">${esc(c)}</button>
+            ${state.deletingCat === c ? `
+              <span class="chip-del-confirm">
+                <button data-action="confirm-delete-cat" data-cat="${esc(c)}" title="삭제 확정">✓</button>
+                <button data-action="cancel-delete-cat" title="취소">✕</button>
+              </span>` : `
+              <button class="chip-del-btn" data-action="ask-delete-cat" data-cat="${esc(c)}" title="카테고리 삭제">×</button>`}
+          </span>`).join("")}
+        ${!state.addingCat ? `
+          <button class="chip chip-add" data-action="start-add-cat">+ 추가</button>` : `
+          <div class="chip-add-form">
+            <input id="newcat-input" data-field="newCatText" value="${esc(state.newCatText)}" placeholder="새 카테고리" />
+            <button data-action="submit-add-cat">✓</button>
+            <button data-action="cancel-add-cat">✕</button>
+          </div>`}
+      </div>` : ""}
+
+    <div class="section-title">3. 금액 · 날짜 · 메모</div>
+    <div class="form-block">
+      <div class="field-label">금액</div>
+      <div class="amount-input-wrap">
+        <input id="amount-input" class="amount-input" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="0" data-field="amount" value="${esc(fmtAmountInput(f.amount))}" />
+        <span class="won-suffix">원</span>
+      </div>
+      <div class="field-label">날짜</div>
+      <input id="date-input" class="date-input" type="date" data-field="date" value="${esc(f.date)}" />
+      <div class="field-label">메모 (선택)</div>
+      <input id="memo-input" class="memo-input" type="text" placeholder="예: 마트 장보기" data-field="memo" value="${esc(f.memo)}" />
+    </div>
+
+    <button class="save-btn ${canSave ? "" : "disabled"}" data-action="save-expense">지출 저장하기</button>
+
+    <div class="section-title">${monthLabel(state.month)} 입력 내역</div>
+    ${list.length === 0 ? `<div class="empty-state">아직 입력된 지출이 없어요</div>` : `
+      <div class="tx-list">${list.map(e => renderTxRow(e, true)).join("")}</div>`}
+  </div>`;
+}
+
+/* ---------- 통계 화면 ---------- */
+function renderStats() {
+  const monthExpenses = state.expenses.filter(e => (e.date||"").slice(0,7) === state.month);
+
+  const catMap = {};
+  monthExpenses.forEach(e => { catMap[e.category] = (catMap[e.category]||0) + Number(e.amount); });
+  const catData = Object.entries(catMap).map(([name,value]) => ({name,value})).sort((a,b)=>b.value-a.value);
+  const totalCat = catData.reduce((s,c)=>s+c.value,0);
+
+  const payerData = PAYERS.map(p => ({
+    name: p,
+    value: monthExpenses.filter(e=>e.payer===p).reduce((s,e)=>s+Number(e.amount),0)
+  }));
+
+  const months = []; for (let i=5;i>=0;i--) months.push(shiftMonth(state.month,-i));
+  const trendData = months.map(m => ({
+    name: `${Number(m.split('-')[1])}월`,
+    value: state.expenses.filter(e => (e.date||"").slice(0,7)===m).reduce((s,e)=>s+Number(e.amount),0)
+  }));
+
+  return `
+  <div class="screen">
+    <div class="section-title">${monthLabel(state.month)} 카테고리 비중</div>
+    ${catData.length === 0 ? `<div class="empty-state">표시할 데이터가 없어요</div>` : `
+      <div class="chart-card">
+        ${renderDonut(catData, totalCat)}
+        <div class="legend-wrap">
+          ${catData.map((c,i)=>`
+            <div class="legend-item">
+              <span class="legend-dot" style="background:${PIE_COLORS[i%PIE_COLORS.length]}"></span>
+              <span class="legend-name">${esc(c.name)}</span>
+              <span class="legend-pct">${totalCat ? Math.round((c.value/totalCat)*100) : 0}%</span>
+            </div>`).join("")}
+        </div>
+      </div>`}
+
+    <div class="section-title">입력자별 비교</div>
+    <div class="chart-card">
+      <div class="chart-unit-note">단위 : 원</div>
+      ${renderBarChart(payerData)}
+    </div>
+
+    <div class="section-title">최근 6개월 추이</div>
+    <div class="chart-card">
+      <div class="chart-unit-note">단위 : 원</div>
+      ${renderLineChart(trendData)}
+    </div>
+  </div>`;
+}
+
+function renderDonut(data, total) {
+  const size = 220, r = 78, cx = size/2, cy = size/2, stroke = 26;
+  const circumference = 2 * Math.PI * r;
+  let offsetAcc = 0;
+  const segs = data.map((d,i) => {
+    const frac = total ? d.value/total : 0;
+    const len = frac * circumference;
+    const seg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${PIE_COLORS[i%PIE_COLORS.length]}" stroke-width="${stroke}"
+      stroke-dasharray="${len} ${circumference-len}" stroke-dashoffset="${-offsetAcc}" transform="rotate(-90 ${cx} ${cy})" />`;
+    offsetAcc += len;
+    return seg;
+  }).join("");
+  return `
+  <svg viewBox="0 0 ${size} ${size}" style="width:100%;max-width:230px;display:block;margin:0 auto;">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#E4DFD2" stroke-width="${stroke}" />
+    ${segs}
+    <text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="12" fill="#5B6478" font-family="Noto Sans KR">총 지출</text>
+    <text x="${cx}" y="${cy+16}" text-anchor="middle" font-size="14" font-weight="700" fill="#1B2A4A" font-family="Roboto Mono">${fmtK(total)}원</text>
+  </svg>`;
+}
+
+function edgeAnchor(i, n) {
+  if (n <= 1) return "middle";
+  if (i === 0) return "start";
+  if (i === n - 1) return "end";
+  return "middle";
+}
+
+function renderBarChart(data) {
+  const W = 320, H = 220, left = 60, right = 12, top = 30, bottom = 30;
+  const plotW = W-left-right, plotH = H-top-bottom;
+  const maxVal = Math.max(...data.map(d=>d.value), 0) || 1;
+  const n = data.length;
+  const slot = plotW/n;
+  const barW = slot*0.5;
+  const gridN = 4;
+
+  const bars = data.map((d,i) => {
+    const x = left + i*slot + (slot-barW)/2;
+    const h = maxVal ? (d.value/maxVal)*plotH : 0;
+    const y = top + plotH - h;
+    const color = (PAYER_STYLE[d.name]||{}).solid || "#2F8F7A";
+    const anchor = edgeAnchor(i, n);
+    return `
+      <text x="${x+barW/2}" y="${y-6}" text-anchor="${anchor}" font-size="9.5" font-family="Roboto Mono" fill="#1B2A4A" font-weight="700">${fmtK(d.value)}</text>
+      <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="6" fill="${color}" />
+      <text x="${x+barW/2}" y="${H-8}" text-anchor="middle" font-size="11" font-family="Noto Sans KR" fill="#5B6478" font-weight="700">${esc(d.name)}</text>
+    `;
+  }).join("");
+
+  const grid = Array.from({length: gridN+1}).map((_,i) => {
+    const val = maxVal*i/gridN;
+    const y = top + plotH - (val/maxVal)*plotH;
+    return `
+      <line x1="${left}" y1="${y}" x2="${left+plotW}" y2="${y}" stroke="#E4DFD2" stroke-width="1" />
+      <text x="${left-6}" y="${y+3}" text-anchor="end" font-size="9" font-family="Roboto Mono" fill="#5B6478">${fmtK(val)}</text>
+    `;
+  }).join("");
+
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">${grid}${bars}</svg>`;
+}
+
+function renderLineChart(data) {
+  const W = 320, H = 220, left = 60, right = 16, top = 34, bottom = 26;
+  const plotW = W-left-right, plotH = H-top-bottom;
+  const maxVal = Math.max(...data.map(d=>d.value), 0) || 1;
+  const n = data.length;
+  const gridN = 4;
+
+  const pts = data.map((d,i) => {
+    const x = left + (n===1 ? plotW/2 : (i*(plotW/(n-1))));
+    const y = top + plotH - (maxVal ? (d.value/maxVal)*plotH : 0);
+    return {x,y,...d};
+  });
+
+  const pathD = pts.map((p,i) => `${i===0?"M":"L"}${p.x},${p.y}`).join(" ");
+
+  const grid = Array.from({length: gridN+1}).map((_,i) => {
+    const val = maxVal*i/gridN;
+    const y = top + plotH - (val/maxVal)*plotH;
+    return `
+      <line x1="${left}" y1="${y}" x2="${left+plotW}" y2="${y}" stroke="#E4DFD2" stroke-width="1" />
+      <text x="${left-6}" y="${y+3}" text-anchor="end" font-size="9" font-family="Roboto Mono" fill="#5B6478">${fmtK(val)}</text>
+    `;
+  }).join("");
+
+  const points = pts.map((p,i) => `
+    <text x="${p.x}" y="${p.y-10}" text-anchor="${edgeAnchor(i,n)}" font-size="9.5" font-family="Roboto Mono" fill="#1B2A4A" font-weight="700">${fmtK(p.value)}</text>
+    <circle cx="${p.x}" cy="${p.y}" r="3.5" fill="#2F8F7A" />
+    <text x="${p.x}" y="${H-6}" text-anchor="${edgeAnchor(i,n)}" font-size="11" font-family="Noto Sans KR" fill="#5B6478" font-weight="700">${esc(p.name)}</text>
+  `).join("");
+
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;">
+    ${grid}
+    <path d="${pathD}" fill="none" stroke="#2F8F7A" stroke-width="2.5" />
+    ${points}
+  </svg>`;
+}
+
+/* ================= 이벤트 처리 ================= */
+document.getElementById("app").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const action = btn.dataset.action;
+
+  if (action === "keypress") {
+    if (state.pwInput.length >= 4) return;
+    state.pwInput += btn.dataset.digit;
+    if (state.pwInput.length === 4) {
+      render();
+      setTimeout(() => {
+        if (state.pwInput === PASSWORD) { state.unlocked = true; render(); }
+        else {
+          state.shake = true; render();
+          setTimeout(() => { state.shake = false; state.pwInput = ""; render(); }, 420);
+        }
+      }, 120);
+      return;
+    }
+    render();
+  }
+  else if (action === "key-del") { state.pwInput = state.pwInput.slice(0,-1); render(); }
+  else if (action === "prev-month") { state.month = shiftMonth(state.month,-1); render(); }
+  else if (action === "next-month") { state.month = shiftMonth(state.month,1); render(); }
+  else if (action === "set-tab") { state.tab = btn.dataset.tab; render(); }
+  else if (action === "select-dash-payer") {
+    const p = btn.dataset.payer;
+    state.dashPayer = (state.dashPayer === p) ? null : p;
+    render();
+  }
+  else if (action === "select-payer") { state.form.payer = btn.dataset.payer; state.form.category = null; state.addingCat = false; render(); }
+  else if (action === "select-category") { state.form.category = btn.dataset.cat; render(); }
+  else if (action === "start-add-cat") { state.addingCat = true; state.newCatText = ""; render(); focusSoon("newcat-input"); }
+  else if (action === "cancel-add-cat") { state.addingCat = false; render(); }
+  else if (action === "submit-add-cat") { submitNewCategory(); }
+  else if (action === "save-expense") { saveExpense(); }
+  else if (action === "ask-delete") { state.deletingId = btn.dataset.id; render(); }
+  else if (action === "cancel-delete") { state.deletingId = null; render(); }
+  else if (action === "confirm-delete") { deleteExpenseFromDB(btn.dataset.id); state.deletingId = null; }
+  else if (action === "ask-delete-cat") { state.deletingCat = btn.dataset.cat; render(); }
+  else if (action === "cancel-delete-cat") { state.deletingCat = null; render(); }
+  else if (action === "confirm-delete-cat") {
+    const cat = btn.dataset.cat;
+    deleteCategoryFromDB(cat);
+    if (state.form.category === cat) state.form.category = null;
+    state.deletingCat = null;
+    render();
+  }
+});
+
+let composing = false;
+document.getElementById("app").addEventListener("compositionstart", () => { composing = true; });
+document.getElementById("app").addEventListener("compositionend", (e) => {
+  composing = false;
+  const field = e.target.dataset.field;
+  if (field === "newCatText") state.newCatText = e.target.value;
+  else if (field) state.form[field] = e.target.value;
+  render();
+});
+
+document.getElementById("app").addEventListener("input", (e) => {
+  const field = e.target.dataset.field;
+  if (!field) return;
+
+  if (field === "amount") {
+    const preCursor = e.target.selectionStart ?? e.target.value.length;
+    const digitsBeforeCursor = (e.target.value.slice(0, preCursor).match(/[0-9]/g) || []).length;
+    const digits = e.target.value.replace(/[^0-9]/g, "").replace(/^0+(?=\d)/, "");
+    state.form.amount = digits;
+    render();
+    const el = document.getElementById("amount-input");
+    if (el) {
+      const formatted = el.value;
+      let count = 0, pos = formatted.length;
+      for (let i = 0; i < formatted.length; i++) {
+        if (/[0-9]/.test(formatted[i])) count++;
+        if (count === digitsBeforeCursor) { pos = i + 1; break; }
+      }
+      if (digitsBeforeCursor === 0) pos = 0;
+      el.focus();
+      try { el.setSelectionRange(pos, pos); } catch {}
+    }
+    return;
+  }
+
+  if (field === "newCatText") state.newCatText = e.target.value;
+  else state.form[field] = e.target.value;
+
+  // 한글 등 조합형(IME) 입력 중에는 다시 그리지 않음 - 그리면 자모가 분리되어 보이는 문제가 생김
+  if (composing || e.isComposing) return;
+  render();
+});
+
+document.getElementById("app").addEventListener("keydown", (e) => {
+  if (e.target.id === "newcat-input" && e.key === "Enter") submitNewCategory();
+});
+
+function focusSoon(id) { setTimeout(() => { const el = document.getElementById(id); if (el) el.focus(); }, 0); }
+
+function submitNewCategory() {
+  const name = state.newCatText.trim();
+  if (!name) return;
+  if (DEFAULT_CATEGORIES.includes(name) || state.categories.includes(name)) {
+    state.form.category = name; state.addingCat = false; state.newCatText = ""; render();
+    return;
+  }
+  addCategoryToDB(name);
+  state.form.category = name;
+  state.addingCat = false;
+  state.newCatText = "";
+  render();
+}
+
+function saveExpense() {
+  const f = state.form;
+  if (!(f.payer && f.category && Number(f.amount) > 0)) return;
+  addExpenseToDB({ payer: f.payer, category: f.category, amount: Number(f.amount), date: f.date, memo: (f.memo||"").trim() });
+  state.form.amount = "";
+  state.form.memo = "";
+  render();
+}
+
+/* ================= 부팅 ================= */
+(function boot() {
+  document.getElementById("app").innerHTML = `<div class="splash">💰<div>가계부 불러오는 중…</div></div>`;
+  connectFirebase(FIREBASE_CONFIG);
+})();
+</script>
+</body>
+</html>
